@@ -84,7 +84,6 @@ void updateSort(int algorithmIndex) {
     }
 }
 
-// Get a string representation of the current array stat
 std::string getArrayState() {
     std::string state = "[";
     for (size_t i = 0; i < sortState.array.size(); ++i) {
