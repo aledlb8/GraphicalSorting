@@ -22,6 +22,7 @@ struct FrameContext
     UINT64                  FenceValue;
 };
 
+
 // Data
 static int const                    NUM_FRAMES_IN_FLIGHT = 3;
 static FrameContext                 g_frameContext[NUM_FRAMES_IN_FLIGHT] = {};
@@ -107,7 +108,9 @@ int main(int, char**)
 
     // Our state
     bool show_control_panel = false;
-    bool show_graph_panel = false;
+    bool show_bargraph_panel = false;
+    bool show_heatmapvisualization_panel = false;
+    bool show_particle_system_panel = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     int selectedAlgorithm = 0; // Index of the selected algorithm
@@ -136,7 +139,13 @@ int main(int, char**)
             ImGui::Begin("Sorting Algorithm");
 
             ImGui::Checkbox("Control Panel", &show_control_panel);
-            ImGui::Checkbox("Graph Panel", &show_graph_panel);
+
+            ImGui::Separator();
+            ImGui::Text("Graphical Panels");
+            ImGui::Checkbox("Bar Graph Panel", &show_bargraph_panel);
+            ImGui::Checkbox("Heatmap Visualization Panel", &show_heatmapvisualization_panel);
+            ImGui::Checkbox("Particle System Panel", &show_particle_system_panel);
+            ImGui::Separator();
 
             ImGui::Text("Algorithm Selected: %s", algorithms[selectedAlgorithm]);
 
@@ -184,8 +193,9 @@ int main(int, char**)
             ImGui::End();
         }
 
-        if(show_graph_panel) {
-            ImGui::Begin("Graphical Panel", &show_graph_panel);
+        if(show_bargraph_panel) {
+            ImGui::SetNextWindowSize(ImVec2(400, 300));
+            ImGui::Begin("Bar Graphical Panel", &show_bargraph_panel, ImGuiWindowFlags_NoResize);
 
             ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
             ImVec2 canvas_size = ImGui::GetContentRegionAvail();
@@ -209,6 +219,60 @@ int main(int, char**)
 
             ImGui::End();
         }
+
+        if (show_heatmapvisualization_panel) {
+            ImGui::SetNextWindowSize(ImVec2(400, 300));
+            ImGui::Begin("Heatmap Visualization Panel", &show_heatmapvisualization_panel, ImGuiWindowFlags_NoResize);
+
+            ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+            const int arraySize = sortState.array.size();
+            const float squareSize = (((canvas_size.x / arraySize) > (2.0f)) ? (canvas_size.x / arraySize) : (2.0f));
+
+            for (int i = 0; i < arraySize; ++i) {
+                float valueRatio = sortState.array[i] / static_cast<float>(sortState.maxVal);
+                float squareHeight = valueRatio * canvas_size.y;
+                ImVec2 squareTopLeft(canvas_pos.x + i * squareSize, canvas_pos.y + canvas_size.y - squareHeight);
+                ImVec2 squareBottomRight(canvas_pos.x + (i + 1) * squareSize, canvas_pos.y + canvas_size.y);
+
+                ImU32 color = IM_COL32(255 * valueRatio, 0, 255 * (1 - valueRatio), 255);
+
+                draw_list->AddRectFilled(squareTopLeft, squareBottomRight, color);
+            }
+
+            ImGui::End();
+        }
+
+
+        if (show_particle_system_panel) {
+            ImGui::SetNextWindowSize(ImVec2(400, 300));
+            ImGui::Begin("Particle System Visualization Panel", &show_particle_system_panel, ImGuiWindowFlags_NoResize);
+
+            ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
+            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+            const int arraySize = sortState.array.size();
+            const float particleSpacing = canvas_size.x / arraySize;
+
+            for (int i = 0; i < arraySize; ++i) {
+                float valueRatio = sortState.array[i] / static_cast<float>(sortState.maxVal);
+                float particleY = canvas_pos.y + canvas_size.y - (valueRatio * canvas_size.y);
+                ImVec2 particleCenter(canvas_pos.x + i * particleSpacing + particleSpacing / 2, particleY);
+
+                ImU32 color = IM_COL32(255, 255 - 255 * valueRatio, 255 * valueRatio, 255);
+
+                draw_list->AddCircleFilled(particleCenter, 5.0f /* radius */, color);
+            }
+
+            ImGui::End();
+        }
+
+
 
 
         // Rendering
