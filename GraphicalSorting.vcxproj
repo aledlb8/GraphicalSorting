@@ -128,6 +128,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>ImTextureID=ImU64;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -139,6 +140,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="lib\ImGui\imgui.cpp" />
     <ClCompile Include="lib\ImGui\imgui_demo.cpp" />
     <ClCompile Include="lib\ImGui\imgui_draw.cpp" />
@@ -146,9 +148,13 @@
     <ClCompile Include="lib\ImGui\imgui_impl_win32.cpp" />
     <ClCompile Include="lib\ImGui\imgui_tables.cpp" />
     <ClCompile Include="lib\ImGui\imgui_widgets.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="Sorting.cpp" />
-    <ClCompile Include="SortState.cpp" />
+    <ClCompile Include="Application.cpp" />
+    <ClCompile Include="BarGraphVisualization.cpp" />
+    <ClCompile Include="HeatmapVisualization.cpp" />
+    <ClCompile Include="ParticleSystemVisualization.cpp" />
+    <ClCompile Include="SortAlgorithm.cpp" />
+    <ClCompile Include="SortManager.cpp" />
+    <ClCompile Include="VisualizationManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lib\ImGui\imconfig.h" />
@@ -159,8 +165,18 @@
     <ClInclude Include="lib\ImGui\imstb_rectpack.h" />
     <ClInclude Include="lib\ImGui\imstb_textedit.h" />
     <ClInclude Include="lib\ImGui\imstb_truetype.h" />
-    <ClInclude Include="Sorting.h" />
-    <ClInclude Include="SortState.h" />
+    <ClInclude Include="Application.h" />
+    <ClInclude Include="BarGraphVisualization.h" />
+    <ClInclude Include="BubbleSort.h" />
+    <ClInclude Include="HeatmapVisualization.h" />
+    <ClInclude Include="IVisualization.h" />
+    <ClInclude Include="MergeSort.h" />
+    <ClInclude Include="ParticleSystemVisualization.h" />
+    <ClInclude Include="QuickSort.h" />
+    <ClInclude Include="SortAlgorithm.h" />
+    <ClInclude Include="SortArray.h" />
+    <ClInclude Include="SortManager.h" />
+    <ClInclude Include="VisualizationManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

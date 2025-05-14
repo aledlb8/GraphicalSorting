@@ -4,7 +4,7 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <tchar.h>
-#include "SortState.h"
+#include "Application.h"
 
 #ifdef _DEBUG
 #define DX12_ENABLE_DEBUG_LAYER
@@ -18,29 +18,28 @@
 
 struct FrameContext
 {
-    ID3D12CommandAllocator* CommandAllocator;
-    UINT64                  FenceValue;
+    ID3D12CommandAllocator *CommandAllocator;
+    UINT64 FenceValue;
 };
 
-
 // Data
-static int const                    NUM_FRAMES_IN_FLIGHT = 3;
-static FrameContext                 g_frameContext[NUM_FRAMES_IN_FLIGHT] = {};
-static UINT                         g_frameIndex = 0;
+static int const NUM_FRAMES_IN_FLIGHT = 3;
+static FrameContext g_frameContext[NUM_FRAMES_IN_FLIGHT] = {};
+static UINT g_frameIndex = 0;
 
-static int const                    NUM_BACK_BUFFERS = 3;
-static ID3D12Device*                g_pd3dDevice = nullptr;
-static ID3D12DescriptorHeap*        g_pd3dRtvDescHeap = nullptr;
-static ID3D12DescriptorHeap*        g_pd3dSrvDescHeap = nullptr;
-static ID3D12CommandQueue*          g_pd3dCommandQueue = nullptr;
-static ID3D12GraphicsCommandList*   g_pd3dCommandList = nullptr;
-static ID3D12Fence*                 g_fence = nullptr;
-static HANDLE                       g_fenceEvent = nullptr;
-static UINT64                       g_fenceLastSignaledValue = 0;
-static IDXGISwapChain3*             g_pSwapChain = nullptr;
-static HANDLE                       g_hSwapChainWaitableObject = nullptr;
-static ID3D12Resource*              g_mainRenderTargetResource[NUM_BACK_BUFFERS] = {};
-static D3D12_CPU_DESCRIPTOR_HANDLE  g_mainRenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
+static int const NUM_BACK_BUFFERS = 3;
+static ID3D12Device *g_pd3dDevice = nullptr;
+static ID3D12DescriptorHeap *g_pd3dRtvDescHeap = nullptr;
+static ID3D12DescriptorHeap *g_pd3dSrvDescHeap = nullptr;
+static ID3D12CommandQueue *g_pd3dCommandQueue = nullptr;
+static ID3D12GraphicsCommandList *g_pd3dCommandList = nullptr;
+static ID3D12Fence *g_fence = nullptr;
+static HANDLE g_fenceEvent = nullptr;
+static UINT64 g_fenceLastSignaledValue = 0;
+static IDXGISwapChain3 *g_pSwapChain = nullptr;
+static HANDLE g_hSwapChainWaitableObject = nullptr;
+static ID3D12Resource *g_mainRenderTargetResource[NUM_BACK_BUFFERS] = {};
+static D3D12_CPU_DESCRIPTOR_HANDLE g_mainRenderTargetDescriptor[NUM_BACK_BUFFERS] = {};
 
 // Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
@@ -48,17 +47,17 @@ void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
 void WaitForLastSubmittedFrame();
-FrameContext* WaitForNextFrameResources();
+FrameContext *WaitForNextFrameResources();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Main code
-int main(int, char**)
+int main(int, char **)
 {
     // Create application window
-    //ImGui_ImplWin32_EnableDpiAwareness();
-    WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"window", nullptr };
+    // ImGui_ImplWin32_EnableDpiAwareness();
+    WNDCLASSEXW wc = {sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Graphical Sorting", nullptr};
     ::RegisterClassExW(&wc);
-    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"window", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
+    HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Graphical Sorting Visualizer", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
@@ -75,47 +74,24 @@ int main(int, char**)
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
+    // ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX12_Init(g_pd3dDevice, NUM_FRAMES_IN_FLIGHT,
-        DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap,
-        g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
-        g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+                        DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap,
+                        g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
+                        g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != nullptr);
-
-    // Our state
-    bool show_control_panel = false;
-    bool show_bargraph_panel = false;
-    bool show_heatmapvisualization_panel = false;
-    bool show_particle_system_panel = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-    int selectedAlgorithm = 0; // Index of the selected algorithm
-    const char* algorithms[] = { "Bubble Sort", "Quick Sort", "Merge Sort" };
-
+    // Create our application instance
+    Application app;
 
     // Main loop
     bool done = false;
@@ -132,181 +108,45 @@ int main(int, char**)
         if (done)
             break;
 
+        // Start the Dear ImGui frame
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
-        {
-            ImGui::Begin("Sorting Algorithm");
 
-            ImGui::Checkbox("Control Panel", &show_control_panel);
-
-            ImGui::Separator();
-            ImGui::Text("Graphical Panels");
-            ImGui::Checkbox("Bar Graph Panel", &show_bargraph_panel);
-            ImGui::Checkbox("Heatmap Visualization Panel", &show_heatmapvisualization_panel);
-            ImGui::Checkbox("Particle System Panel", &show_particle_system_panel);
-            ImGui::Separator();
-
-            ImGui::Text("Algorithm Selected: %s", algorithms[selectedAlgorithm]);
-
-            if (ImGui::Button(sortState.isSorting ? "Stop" : "Start")) {
-                sortState.isSorting = !sortState.isSorting;
-
-                if (sortState.isSorting) {
-                    initializeSort(selectedAlgorithm);
-                }
-                else {
-                    stopSort();
-                }
-            }
-
-            if (ImGui::Button("Clear")) {
-                resetSortState();
-            }
-
-            ImGui::BeginChild("Scrolling", ImVec2(0, 150), true, ImGuiWindowFlags_HorizontalScrollbar);
-
-            ImGui::Text("%s", getArrayState().c_str());
-
-            ImGui::EndChild();
-
-            if (sortState.isSorting) {
-                updateSort(selectedAlgorithm);
-            }
-            
-            ImGui::End();
-        }
-
-        
-        if (show_control_panel)
-        {
-            ImGui::Begin("Control Panel", &show_control_panel);
-            ImGui::Combo("Select Algorithm", &selectedAlgorithm, algorithms, IM_ARRAYSIZE(algorithms));
-
-            ImGui::SliderInt("Array Size",&sortState.size, 100, 100000);
-
-            ImGui::Text("Elapsed Time: %.3f seconds", getElapsedTime());
-            ImGui::Text("Comparisons: %d", getComparisons());
-            ImGui::Text("Swaps: %d", getSwaps());
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-
-            ImGui::End();
-        }
-
-        if(show_bargraph_panel) {
-            ImGui::SetNextWindowSize(ImVec2(400, 300));
-            ImGui::Begin("Bar Graphical Panel", &show_bargraph_panel, ImGuiWindowFlags_NoResize);
-
-            ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-
-            if (canvas_size.x < 50.0f) canvas_size.x = 50.0f;
-            if (canvas_size.y < 50.0f) canvas_size.y = 50.0f;
-            ImGui::InvisibleButton("Canvas", canvas_size);
-
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-
-            const int arraySize = sortState.array.size();
-            const float barWidth = canvas_size.x / arraySize;
-
-            for (int i = 0; i < arraySize; ++i) {
-                float barHeight = (sortState.array[i] / static_cast<float>(sortState.maxVal)) * canvas_size.y;
-                ImVec2 barTopLeft(canvas_pos.x + i * barWidth, canvas_pos.y + canvas_size.y - barHeight);
-                ImVec2 barBottomRight(canvas_pos.x + (i + 1) * barWidth, canvas_pos.y + canvas_size.y);
-
-                draw_list->AddRectFilled(barTopLeft, barBottomRight, IM_COL32(255, 0, 0, 255));
-            }
-
-            ImGui::End();
-        }
-
-        if (show_heatmapvisualization_panel) {
-            ImGui::SetNextWindowSize(ImVec2(400, 300));
-            ImGui::Begin("Heatmap Visualization Panel", &show_heatmapvisualization_panel, ImGuiWindowFlags_NoResize);
-
-            ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-
-            const int arraySize = sortState.array.size();
-            const float squareSize = (((canvas_size.x / arraySize) > (2.0f)) ? (canvas_size.x / arraySize) : (2.0f));
-
-            for (int i = 0; i < arraySize; ++i) {
-                float valueRatio = sortState.array[i] / static_cast<float>(sortState.maxVal);
-                float squareHeight = valueRatio * canvas_size.y;
-                ImVec2 squareTopLeft(canvas_pos.x + i * squareSize, canvas_pos.y + canvas_size.y - squareHeight);
-                ImVec2 squareBottomRight(canvas_pos.x + (i + 1) * squareSize, canvas_pos.y + canvas_size.y);
-
-                ImU32 color = IM_COL32(255 * valueRatio, 0, 255 * (1 - valueRatio), 255);
-
-                draw_list->AddRectFilled(squareTopLeft, squareBottomRight, color);
-            }
-
-            ImGui::End();
-        }
-
-
-        if (show_particle_system_panel) {
-            ImGui::SetNextWindowSize(ImVec2(400, 300));
-            ImGui::Begin("Particle System Visualization Panel", &show_particle_system_panel, ImGuiWindowFlags_NoResize);
-
-            ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-            ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-
-            ImDrawList* draw_list = ImGui::GetWindowDrawList();
-
-            const int arraySize = sortState.array.size();
-            const float particleSpacing = canvas_size.x / arraySize;
-
-            for (int i = 0; i < arraySize; ++i) {
-                float valueRatio = sortState.array[i] / static_cast<float>(sortState.maxVal);
-                float particleY = canvas_pos.y + canvas_size.y - (valueRatio * canvas_size.y);
-                ImVec2 particleCenter(canvas_pos.x + i * particleSpacing + particleSpacing / 2, particleY);
-
-                ImU32 color = IM_COL32(255, 255 - 255 * valueRatio, 255 * valueRatio, 255);
-
-                draw_list->AddCircleFilled(particleCenter, 5.0f /* radius */, color);
-            }
-
-            ImGui::End();
-        }
-
-
-
+        // Render our application
+        app.render();
 
         // Rendering
         ImGui::Render();
 
-        FrameContext* frameCtx = WaitForNextFrameResources();
+        FrameContext *frameCtx = WaitForNextFrameResources();
         UINT backBufferIdx = g_pSwapChain->GetCurrentBackBufferIndex();
         frameCtx->CommandAllocator->Reset();
 
         D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Flags                  = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource   = g_mainRenderTargetResource[backBufferIdx];
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = g_mainRenderTargetResource[backBufferIdx];
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-        barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         g_pd3dCommandList->Reset(frameCtx->CommandAllocator, nullptr);
         g_pd3dCommandList->ResourceBarrier(1, &barrier);
 
-        // Render Dear ImGui graphics
-        const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
+        // Clear the render target
+        const float clear_color_with_alpha[4] = {0.1f, 0.1f, 0.1f, 1.0f};
         g_pd3dCommandList->ClearRenderTargetView(g_mainRenderTargetDescriptor[backBufferIdx], clear_color_with_alpha, 0, nullptr);
         g_pd3dCommandList->OMSetRenderTargets(1, &g_mainRenderTargetDescriptor[backBufferIdx], FALSE, nullptr);
         g_pd3dCommandList->SetDescriptorHeaps(1, &g_pd3dSrvDescHeap);
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_pd3dCommandList);
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PRESENT;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         g_pd3dCommandList->ResourceBarrier(1, &barrier);
         g_pd3dCommandList->Close();
 
-        g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&g_pd3dCommandList);
+        g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList *const *)&g_pd3dCommandList);
 
-        g_pSwapChain->Present(1, 0); // Present with vsync
-        //g_pSwapChain->Present(0, 0); // Present without vsync
+        g_pSwapChain->Present(1, 0);
 
         UINT64 fenceValue = g_fenceLastSignaledValue + 1;
         g_pd3dCommandQueue->Signal(g_fence, fenceValue);
@@ -329,7 +169,6 @@ int main(int, char**)
 }
 
 // Helper functions
-
 bool CreateDeviceD3D(HWND hWnd)
 {
     // Setup swap chain
@@ -350,31 +189,19 @@ bool CreateDeviceD3D(HWND hWnd)
         sd.Stereo = FALSE;
     }
 
-    // [DEBUG] Enable debug interface
 #ifdef DX12_ENABLE_DEBUG_LAYER
-    ID3D12Debug* pdx12Debug = nullptr;
+    // Enable the debug layer (requires the Graphics Tools "optional feature").
+    ID3D12Debug *pdx12Debug = nullptr;
     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pdx12Debug))))
-        pdx12Debug->EnableDebugLayer();
-#endif
-
-    // Create device
-    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
-    if (D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&g_pd3dDevice)) != S_OK)
-        return false;
-
-    // [DEBUG] Setup debug interface to break on any warnings/errors
-#ifdef DX12_ENABLE_DEBUG_LAYER
-    if (pdx12Debug != nullptr)
     {
-        ID3D12InfoQueue* pInfoQueue = nullptr;
-        g_pd3dDevice->QueryInterface(IID_PPV_ARGS(&pInfoQueue));
-        pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
-        pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
-        pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
-        pInfoQueue->Release();
+        pdx12Debug->EnableDebugLayer();
         pdx12Debug->Release();
     }
 #endif
+
+    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
+    if (D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&g_pd3dDevice)) != S_OK)
+        return false;
 
     {
         D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -413,8 +240,10 @@ bool CreateDeviceD3D(HWND hWnd)
     }
 
     for (UINT i = 0; i < NUM_FRAMES_IN_FLIGHT; i++)
+    {
         if (g_pd3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&g_frameContext[i].CommandAllocator)) != S_OK)
             return false;
+    }
 
     if (g_pd3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, g_frameContext[0].CommandAllocator, nullptr, IID_PPV_ARGS(&g_pd3dCommandList)) != S_OK ||
         g_pd3dCommandList->Close() != S_OK)
@@ -428,8 +257,8 @@ bool CreateDeviceD3D(HWND hWnd)
         return false;
 
     {
-        IDXGIFactory4* dxgiFactory = nullptr;
-        IDXGISwapChain1* swapChain1 = nullptr;
+        IDXGIFactory4 *dxgiFactory = nullptr;
+        IDXGISwapChain1 *swapChain1 = nullptr;
         if (CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory)) != S_OK)
             return false;
         if (dxgiFactory->CreateSwapChainForHwnd(g_pd3dCommandQueue, hWnd, &sd, nullptr, nullptr, &swapChain1) != S_OK)
@@ -449,20 +278,59 @@ bool CreateDeviceD3D(HWND hWnd)
 void CleanupDeviceD3D()
 {
     CleanupRenderTarget();
-    if (g_pSwapChain) { g_pSwapChain->SetFullscreenState(false, nullptr); g_pSwapChain->Release(); g_pSwapChain = nullptr; }
-    if (g_hSwapChainWaitableObject != nullptr) { CloseHandle(g_hSwapChainWaitableObject); }
+    if (g_pSwapChain)
+    {
+        g_pSwapChain->Release();
+        g_pSwapChain = nullptr;
+    }
+    if (g_hSwapChainWaitableObject != nullptr)
+    {
+        CloseHandle(g_hSwapChainWaitableObject);
+    }
     for (UINT i = 0; i < NUM_FRAMES_IN_FLIGHT; i++)
-        if (g_frameContext[i].CommandAllocator) { g_frameContext[i].CommandAllocator->Release(); g_frameContext[i].CommandAllocator = nullptr; }
-    if (g_pd3dCommandQueue) { g_pd3dCommandQueue->Release(); g_pd3dCommandQueue = nullptr; }
-    if (g_pd3dCommandList) { g_pd3dCommandList->Release(); g_pd3dCommandList = nullptr; }
-    if (g_pd3dRtvDescHeap) { g_pd3dRtvDescHeap->Release(); g_pd3dRtvDescHeap = nullptr; }
-    if (g_pd3dSrvDescHeap) { g_pd3dSrvDescHeap->Release(); g_pd3dSrvDescHeap = nullptr; }
-    if (g_fence) { g_fence->Release(); g_fence = nullptr; }
-    if (g_fenceEvent) { CloseHandle(g_fenceEvent); g_fenceEvent = nullptr; }
-    if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
+        if (g_frameContext[i].CommandAllocator)
+        {
+            g_frameContext[i].CommandAllocator->Release();
+            g_frameContext[i].CommandAllocator = nullptr;
+        }
+    if (g_pd3dCommandQueue)
+    {
+        g_pd3dCommandQueue->Release();
+        g_pd3dCommandQueue = nullptr;
+    }
+    if (g_pd3dCommandList)
+    {
+        g_pd3dCommandList->Release();
+        g_pd3dCommandList = nullptr;
+    }
+    if (g_pd3dRtvDescHeap)
+    {
+        g_pd3dRtvDescHeap->Release();
+        g_pd3dRtvDescHeap = nullptr;
+    }
+    if (g_pd3dSrvDescHeap)
+    {
+        g_pd3dSrvDescHeap->Release();
+        g_pd3dSrvDescHeap = nullptr;
+    }
+    if (g_fence)
+    {
+        g_fence->Release();
+        g_fence = nullptr;
+    }
+    if (g_fenceEvent)
+    {
+        CloseHandle(g_fenceEvent);
+        g_fenceEvent = nullptr;
+    }
+    if (g_pd3dDevice)
+    {
+        g_pd3dDevice->Release();
+        g_pd3dDevice = nullptr;
+    }
 
 #ifdef DX12_ENABLE_DEBUG_LAYER
-    IDXGIDebug1* pDebug = nullptr;
+    IDXGIDebug1 *pDebug = nullptr;
     if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
     {
         pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
@@ -475,7 +343,7 @@ void CreateRenderTarget()
 {
     for (UINT i = 0; i < NUM_BACK_BUFFERS; i++)
     {
-        ID3D12Resource* pBackBuffer = nullptr;
+        ID3D12Resource *pBackBuffer = nullptr;
         g_pSwapChain->GetBuffer(i, IID_PPV_ARGS(&pBackBuffer));
         g_pd3dDevice->CreateRenderTargetView(pBackBuffer, nullptr, g_mainRenderTargetDescriptor[i]);
         g_mainRenderTargetResource[i] = pBackBuffer;
@@ -487,12 +355,16 @@ void CleanupRenderTarget()
     WaitForLastSubmittedFrame();
 
     for (UINT i = 0; i < NUM_BACK_BUFFERS; i++)
-        if (g_mainRenderTargetResource[i]) { g_mainRenderTargetResource[i]->Release(); g_mainRenderTargetResource[i] = nullptr; }
+        if (g_mainRenderTargetResource[i])
+        {
+            g_mainRenderTargetResource[i]->Release();
+            g_mainRenderTargetResource[i] = nullptr;
+        }
 }
 
 void WaitForLastSubmittedFrame()
 {
-    FrameContext* frameCtx = &g_frameContext[g_frameIndex % NUM_FRAMES_IN_FLIGHT];
+    FrameContext *frameCtx = &g_frameContext[g_frameIndex % NUM_FRAMES_IN_FLIGHT];
 
     UINT64 fenceValue = frameCtx->FenceValue;
     if (fenceValue == 0)
@@ -506,15 +378,15 @@ void WaitForLastSubmittedFrame()
     WaitForSingleObject(g_fenceEvent, INFINITE);
 }
 
-FrameContext* WaitForNextFrameResources()
+FrameContext *WaitForNextFrameResources()
 {
     UINT nextFrameIndex = g_frameIndex + 1;
     g_frameIndex = nextFrameIndex;
 
-    HANDLE waitableObjects[] = { g_hSwapChainWaitableObject, nullptr };
+    HANDLE waitableObjects[] = {g_hSwapChainWaitableObject, nullptr};
     DWORD numWaitableObjects = 1;
 
-    FrameContext* frameCtx = &g_frameContext[nextFrameIndex % NUM_FRAMES_IN_FLIGHT];
+    FrameContext *frameCtx = &g_frameContext[nextFrameIndex % NUM_FRAMES_IN_FLIGHT];
     UINT64 fenceValue = frameCtx->FenceValue;
     if (fenceValue != 0) // means no fence was signaled
     {
@@ -533,10 +405,6 @@ FrameContext* WaitForNextFrameResources()
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // Win32 message handler
-// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -562,5 +430,5 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         ::PostQuitMessage(0);
         return 0;
     }
-    return ::DefWindowProcW(hWnd, msg, wParam, lParam);
+    return ::DefWindowProc(hWnd, msg, wParam, lParam);
 }
